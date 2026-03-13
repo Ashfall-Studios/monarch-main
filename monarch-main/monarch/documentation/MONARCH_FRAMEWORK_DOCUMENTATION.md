@@ -2,8 +2,6 @@
 
 Complete API documentation for the Monarch Roleplay Framework. This document covers all available functions, utilities, and systems for developers creating schemas and modules.
 
-The remainder of this file is kept as a legacy consolidated reference.
-
 ## Table of Contents
 
 1. [Player Meta Functions](#player-meta-functions)

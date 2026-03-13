@@ -39,6 +39,18 @@ Monarch.RegisterItem({
 - `WeaponOverrideClip` (number): clip override.
 - `ShouldRemoveOnEquip` (bool): remove item after equip.
 - `AttachmentClass` (string): attachment equip flow.
+- `EquipGroup` (string): equip-slot group key used for one-per-group behavior.
+
+#### Equip types (`EquipGroup`)
+- `primary` (aliases: `primary_weapon`, `primary`)
+- `secondary` (aliases: `secondary_weapon`, `secondary`)
+- `utility`
+- `tool`
+- `head`
+- `face`
+- `torso` (aliases: `chest`, `body`)
+- `legs` (alias: `pants`)
+- `shoes` (aliases: `feet`, `boots`)
 
 #### Durability attributes
 - `StartingDurability` / `DurabilityStart` / `DefaultDurability` (number 0-100).

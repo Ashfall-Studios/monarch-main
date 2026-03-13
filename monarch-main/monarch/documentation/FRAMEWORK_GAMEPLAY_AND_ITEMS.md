@@ -157,6 +157,23 @@ Common item fields that affect equip flow:
 - `WeaponOverrideClip` and runtime `clip` persistence
 - `ShouldRemoveOnEquip` (consume/remove item when equipped)
 
+Supported `EquipGroup` values (normalized by `Monarch.NormalizeEquipGroup`):
+
+- `primary` (`primary_weapon`, `primary`)
+- `secondary` (`secondary_weapon`, `secondary`)
+- `utility` (`utility`)
+- `tool` (`tool`)
+- `head` (`head`)
+- `face` (`face`)
+- `torso` (`torso`, `chest`, `body`)
+- `legs` (`legs`, `pants`)
+- `shoes` (`shoes`, `feet`, `boots`)
+
+Behavior:
+
+- Only one equipped item per normalized `EquipGroup`.
+- If a second item in the same group is equipped, the existing one is unequipped/swapped automatically.
+
 Related hooks and callbacks:
 
 - `CanEquip(ply)`

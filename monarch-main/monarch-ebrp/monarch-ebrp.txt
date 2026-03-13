@@ -1,0 +1,8 @@
+"monarch-skeleton"
+{
+	"base"		"Monarch"
+	"title"		"Monarch Roleplay"
+	"author"	"Thrawn"
+	"category"	"rp"
+	"menusystem"	"1"
+}

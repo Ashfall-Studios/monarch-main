@@ -1,0 +1,10 @@
+{
+    "[lua]": {
+        "editor.detectIndentation": false,
+        "editor.insertSpaces": true,
+        "editor.tabSize": 4
+    },
+    "Lua.diagnostics.globals": [
+        "monarch"
+    ]
+}

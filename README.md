@@ -17,4 +17,4 @@ Instructions for Installation:
   - Please follow the code style used in the framework
   - Please direct all pull requests to the [dev branch](https://github.com/Ashfall-Studios/monarch-main/tree/dev)
 
-If you run into issues or have questions, please DM thrawn9999 on discord.
+If you run into issues or have questions, please join [our discord](https://discord.com/invite/cNhv8f3Upu)

@@ -1,11 +1,7 @@
 "monarch"
 {
-	"base"			"monarch"
+	"base"			"sandbox"
+	"author"		"Ashfall Studios"
 	"title"			"Monarch"
-	"menusystem"		"1"
-	"maps"			""
-		
-
-
-	"Settings" 
+	"menusystem"		"0"
 }

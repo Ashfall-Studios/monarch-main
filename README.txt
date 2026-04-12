@@ -12,3 +12,5 @@ Instructions for Installation:
   - Configure the default operator and other important values (default operator will give the player with the corresponding steamid superadmin)
   - Press Play!
   - All in game config (map config, loot, etc.) can be done at run-time as most map and other info is saved and loaded from JSON files or the Database. 
+
+If you run into issues or have questions, please DM thrawn9999 on discord.

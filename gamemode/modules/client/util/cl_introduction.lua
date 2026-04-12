@@ -157,6 +157,17 @@ local function CanHoldUseTarget(lp, ent)
     return ShouldShowEntityContext(ent, lp)
 end
 
+local function CanHoldStaticUseTarget(lp, tr)
+    if not IsValid(lp) or not istable(tr) or not tr.Hit then return false end
+    if IsValid(tr.Entity) and tr.Entity ~= Entity(0) then return false end
+
+    local staticUse = Monarch and Monarch.StaticUse
+    if not staticUse or not isfunction(staticUse.GetPromptFromTrace) then return false end
+
+    local prompt = staticUse.GetPromptFromTrace(lp, tr)
+    return isstring(prompt) and string.Trim(prompt) ~= ""
+end
+
 local isHoldingE, holdStart, holdThreshold = false, 0, 0.5
 
 function Monarch.Introductions.GetDisplayName(ply)
@@ -184,6 +195,9 @@ local function OpenContextOverlay()
     CM.scrollTarget = 1
     CM.focused = 1
 
+    local getMenuCursorPos
+    local getHoveredOptionIndex
+
     local pnl = vgui.Create("EditablePanel")
     CM.panel = pnl
     pnl:SetSize(ScrW(), ScrH())
@@ -209,9 +223,17 @@ local function OpenContextOverlay()
             return
         end
         if mc ~= MOUSE_LEFT then return end
-        local idx = CM.focused
+
+        local panelW, panelH = self:GetWide(), self:GetTall()
+        local idx = getHoveredOptionIndex(self, panelW, panelH)
+        if idx == 0 then
+            idx = CM.focused
+        end
+
         local opt = CM.options[idx]
         if not opt then return end
+
+        local clickedAction = tostring(opt.action or "unknown")
 
         local clickSound = (Config and Config.InteractionMenuClick) or "mrp/ui/click.wav"
         surface.PlaySound(clickSound)
@@ -534,6 +556,37 @@ local function OpenContextOverlay()
         return buttonX, buttonY, buttonW, buttonH
     end
 
+    function getMenuCursorPos(panel)
+        local mouseX, mouseY = panel:CursorPos()
+        if mouseX and mouseY and mouseX >= 0 and mouseY >= 0 then
+            return mouseX, mouseY
+        end
+
+        local globalMouseX, globalMouseY = gui.MousePos()
+        if globalMouseX and globalMouseY and globalMouseX >= 0 and globalMouseY >= 0 then
+            return globalMouseX, globalMouseY
+        end
+
+        return nil, nil
+    end
+
+    function getHoveredOptionIndex(panel, w, h)
+        local mouseX, mouseY = getMenuCursorPos(panel)
+        if not mouseX or not mouseY then return 0 end
+
+        local metrics = getLayoutMetrics(w, h)
+        for i = 1, #CM.options do
+            local x, y, bw, bh = getButtonBounds(i, w, h)
+            if y + bh >= metrics.visibleTop and y <= metrics.visibleBottom then
+                if mouseX >= x and mouseX <= (x + bw) and mouseY >= y and mouseY <= (y + bh) then
+                    return i
+                end
+            end
+        end
+
+        return 0
+    end
+
     function pnl:Think()
         local ft = FrameTime()
         CM.fade = math.Clamp(CM.fade + (CM.closing and -600 or 600) * ft, 0, 255)
@@ -547,16 +600,14 @@ local function OpenContextOverlay()
             return
         end
 
-        local _, my = gui.MousePos()
-        if not my or my <= 0 then
-            _, my = self:CursorPos()
-        end
         local w, h = self:GetWide(), self:GetTall()
+        local _, my = getMenuCursorPos(self)
 
         local metrics = getLayoutMetrics(w, h)
         local count = #CM.options
         if count > 0 then
-            local mouseFrac = math.Clamp((my - metrics.visibleTop) / metrics.visibleHeight, 0, 1)
+            local clampedMouseY = my and math.Clamp(my, metrics.visibleTop, metrics.visibleBottom) or metrics.centerY
+            local mouseFrac = math.Clamp((clampedMouseY - metrics.visibleTop) / metrics.visibleHeight, 0, 1)
             CM.scrollTarget = 1 + (mouseFrac * (count - 1))
             CM.scroll = Lerp(FrameTime() * 14, CM.scroll, CM.scrollTarget)
         else
@@ -581,7 +632,7 @@ local function OpenContextOverlay()
             end
         end
 
-        CM.hovered = CM.focused
+        CM.hovered = getHoveredOptionIndex(self, w, h)
 
         if oldFocus ~= CM.focused and CM.focused ~= 0 then
             local hoverSound = (Config and Config.InteractMenuSound) or "ui/hls_ui_scroll_click.wav"
@@ -699,13 +750,17 @@ hook.Add("Think", "Monarch_EHoldToOpenMenu", function()
 
     local tr = lp:GetEyeTrace()
     local ent = tr.Entity
-    if input.IsKeyDown(KEY_E) and CanHoldUseTarget(lp, ent) then
+    local canHoldEntity = CanHoldUseTarget(lp, ent)
+    local canHoldStaticUse = CanHoldStaticUseTarget(lp, tr)
+
+    if input.IsKeyDown(KEY_E) and (canHoldEntity or canHoldStaticUse) then
         if not isHoldingE then
             isHoldingE = true
             holdStart = CurTime()
         elseif CurTime() - holdStart >= holdThreshold then
             net.Start("Monarch_RequestContextMenu")
-            net.WriteEntity(ent)
+            net.WriteEntity(canHoldEntity and ent or Entity(0))
+            net.WriteBool(canHoldStaticUse and not canHoldEntity)
             net.SendToServer()
             isHoldingE = false
         end

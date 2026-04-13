@@ -21,6 +21,10 @@ function Monarch.LoadFile(fileName)
 	end
 
 	local function hasLuaData(path)
+		if file.Exists(path, "LUA") then
+			return true
+		end
+
 		local size = file.Size(path, "LUA")
 		size = tonumber(size)
 		return size and size > 0
@@ -43,18 +47,47 @@ function Monarch.LoadFile(fileName)
 		table.insert(candidates, path)
 	end
 
+	local function escapePattern(text)
+		return tostring(text):gsub("([^%w])", "%%%1")
+	end
+
 	local function resolveLuaPath(path)
 		local cleaned = normalizePath(path)
-		local stripped = cleaned
-		stripped = stripped:gsub("^monarch/gamemode/", "")
-		stripped = stripped:gsub("^gamemode/", "")
+
+		local roots = {}
+		local seenRoots = {}
+
+		local function addRoot(root)
+			root = normalizePath(root)
+			if root == "" or seenRoots[root] then
+				return
+			end
+
+			seenRoots[root] = true
+			table.insert(roots, root)
+		end
+
+		addRoot(engine and engine.ActiveGamemode and engine.ActiveGamemode() or nil)
+		addRoot(gmod and gmod.GetGamemode and gmod.GetGamemode() and gmod.GetGamemode().FolderName or nil)
+		addRoot(GM and GM.FolderName or nil)
+		addRoot("monarch")
+
+		local stripped = cleaned:gsub("^gamemode/", "")
+		for _, root in ipairs(roots) do
+			stripped = stripped:gsub("^" .. escapePattern(root) .. "/gamemode/", "")
+			stripped = stripped:gsub("^" .. escapePattern(root) .. "/", "")
+		end
 
 		local candidates = {}
 		local seen = {}
 		addCandidate(candidates, seen, cleaned)
 		addCandidate(candidates, seen, stripped)
 		addCandidate(candidates, seen, "gamemode/" .. stripped)
-		addCandidate(candidates, seen, "monarch/gamemode/" .. stripped)
+
+		for _, root in ipairs(roots) do
+			addCandidate(candidates, seen, root .. "/gamemode/" .. stripped)
+			addCandidate(candidates, seen, root .. "/" .. stripped)
+		end
 
 		for _, candidate in ipairs(candidates) do
 			if hasLuaData(candidate) then

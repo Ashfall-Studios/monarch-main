@@ -1,4 +1,4 @@
-﻿    net.Receive("Monarch_Tickets_List", function()
+    net.Receive("Monarch_Tickets_List", function()
         local payload = net.ReadTable() or {}
 
         local playerFrame = (IsValid(Monarch_Player_Ticket_Frame) and Monarch_Player_Ticket_Frame) or nil
@@ -71,7 +71,13 @@
         if not Monarch_Tickets_Global.hadInitial then
             for _, t in ipairs(payload) do
                 local msgCount = (t.messages and #t.messages) or 0
-                Monarch_Tickets_Global.prevMap[t.id] = { status = t.status, claimedBy = t.claimedBy, messages = msgCount }
+                Monarch_Tickets_Global.prevMap[t.id] = {
+                    status = t.status,
+                    claimedBy = t.claimedBy,
+                    messages = msgCount,
+                    reporter = t.reporter,
+                    reporterName = t.reporterName
+                }
             end
             Monarch_Tickets_Global.hadInitial = true
             return
@@ -85,8 +91,15 @@
                 local oldStatus = string.lower(prev.status or "")
                 local newStatus = string.lower(t.status or "")
                 if oldStatus ~= newStatus then
-                    if newStatus == "claimed" and Monarch_Tickets_AddGlobalAndUI then Monarch_Tickets_AddGlobalAndUI("claimed", t) end
-                    if newStatus == "closed" and Monarch_Tickets_AddGlobalAndUI then Monarch_Tickets_AddGlobalAndUI("closed", t) end
+                    if Monarch_Tickets_AddGlobalAndUI then
+                        if newStatus == "closed" then
+                            Monarch_Tickets_AddGlobalAndUI("closed", t)
+                        elseif newStatus == "claimed" then
+                            Monarch_Tickets_AddGlobalAndUI("claimed", t)
+                        else
+                            Monarch_Tickets_AddGlobalAndUI("updated", t)
+                        end
+                    end
                 end
                 if msgCount > (prev.messages or 0) and Monarch_Tickets_AddGlobalAndUI then Monarch_Tickets_AddGlobalAndUI("updated", t) end
             else
@@ -94,8 +107,31 @@
                 if Monarch_Tickets_IsStaff and Monarch_Tickets_IsStaff() and Monarch_Tickets_CreateTicketNotification then
                     Monarch_Tickets_CreateTicketNotification(t)
                 end
+                if Monarch_Tickets_AddGlobalAndUI then
+                    Monarch_Tickets_AddGlobalAndUI("created", t)
+                end
             end
-            Monarch_Tickets_Global.prevMap[id] = { status = t.status, claimedBy = t.claimedBy, messages = msgCount }
+            Monarch_Tickets_Global.prevMap[id] = {
+                status = t.status,
+                claimedBy = t.claimedBy,
+                messages = msgCount,
+                reporter = t.reporter,
+                reporterName = t.reporterName
+            }
+        end
+
+        -- Some servers only return open tickets; if one disappears, treat it as closed for UI updates.
+        for oldId, prev in pairs(Monarch_Tickets_Global.prevMap or {}) do
+            if not byId[oldId] then
+                if Monarch_Tickets_AddGlobalAndUI and string.lower(prev.status or "") ~= "closed" then
+                    Monarch_Tickets_AddGlobalAndUI("closed", {
+                        id = oldId,
+                        reporterName = prev.reporterName or prev.reporter or "Unknown Player",
+                        status = "closed"
+                    })
+                end
+                Monarch_Tickets_Global.prevMap[oldId] = nil
+            end
         end
 
     end)
@@ -175,6 +211,12 @@ net.Receive("Monarch_Tickets_Message", function()
     local id = net.ReadUInt(16)
     local msg = net.ReadTable() or {}
 
+    local function RoundedOutlinedBox(radius, x, y, w, h, fill, outline, borderW)
+        borderW = borderW or 1
+        draw.RoundedBox(radius, x, y, w, h, outline)
+        draw.RoundedBox(math.max(0, radius - borderW), x + borderW, y + borderW, w - (borderW * 2), h - (borderW * 2), fill)
+    end
+
     local pf = (IsValid(Monarch_Player_Ticket_Frame) and Monarch_Player_Ticket_Frame) or nil
     if pf and pf._chatActiveTicketId and pf._chatActiveTicketId == id and IsValid(pf._chatScroll) then
         local function GetPalette()
@@ -188,6 +230,24 @@ net.Receive("Monarch_Tickets_Message", function()
         local P = GetPalette()
         local ctx = pf._chatContext or { reporterSID64 = "", handlerSID64 = "" }
         local msgSID = tostring(msg.sid or "")
+        local msgOrigin = string.lower(tostring(msg.origin or msg.source or ""))
+        local isReportMsg
+        if msgOrigin == "report" then
+            isReportMsg = true
+        elseif msgOrigin == "admin" then
+            isReportMsg = false
+        else
+            local msgRole = string.lower(tostring(msg.role or ""))
+            if msgRole == "player" then
+                isReportMsg = true
+            elseif msgRole == "staff" then
+                isReportMsg = false
+            elseif msgSID == "" then
+                isReportMsg = true
+            else
+                isReportMsg = (ctx.reporterSID64 ~= "" and msgSID == ctx.reporterSID64)
+            end
+        end
         local isCreator = (msgSID ~= "" and ctx.reporterSID64 ~= "" and msgSID == ctx.reporterSID64)
         local isHandler = (msgSID ~= "" and ctx.handlerSID64 ~= "" and msgSID == ctx.handlerSID64)
         local holder = vgui.Create("DPanel", pf._chatScroll)
@@ -198,31 +258,21 @@ net.Receive("Monarch_Tickets_Message", function()
 
         local row = vgui.Create("DPanel", holder)
         row:Dock(FILL)
-        row:DockMargin(isHandler and 80 or 8, 0, isHandler and 8 or 80, 0)
+        row:DockMargin(8, 0, 8, 0)
         row.Paint = function(self, pw, ph)
-            local creatorBg = Color(40,120,60)
-            local creatorBorder = Color(60,160,80)
-            local handlerBg = Color(60,100,180)
-            local handlerBorder = Color(80,130,210)
-            local neutralBg = P.inputBg
-            local neutralBorder = P.outline
-            local bg, border
-            if isHandler then bg, border = handlerBg, handlerBorder
-            elseif isCreator then bg, border = creatorBg, creatorBorder
-            else bg, border = neutralBg, neutralBorder end
+            local bg = isReportMsg and Color(48, 132, 72) or Color(54, 98, 176)
+            local border = isReportMsg and Color(62, 156, 92) or Color(74, 124, 206)
             local radius = (P.radius or 6) + 2
-            draw.RoundedBox(radius, 0, 0, pw, ph, bg)
-            surface.SetDrawColor(border)
-            surface.DrawOutlinedRect(0, 0, pw, ph, 1)
+            RoundedOutlinedBox(radius, 0, 0, pw, ph, bg, border, 1)
             local who = msg.name or (isHandler and "Handler" or (isCreator and "Creator" or "Player"))
             local when = os.date("%I:%M %p", tonumber(msg.time or os.time()))
-            draw.SimpleText(who.." Â· "..when, "InvSmall", 8, 6, (isHandler or isCreator) and Color(245,245,245) or Color(190,192,195))
+            draw.SimpleText(who .. " - " .. when, "InvSmall", 8, 9, Color(244,246,250), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
         end
         local text = vgui.Create("DLabel", row)
         text:Dock(FILL)
-        text:DockMargin(8, 20, 8, 8)
+        text:DockMargin(8, 22, 8, 8)
         text:SetFont("InvSmall")
-        text:SetTextColor((isHandler or isCreator) and Color(250,250,250) or P.inputText)
+        text:SetTextColor(Color(248,250,252))
         text:SetWrap(true)
         text:SetAutoStretchVertical(true)
         do
@@ -246,9 +296,32 @@ net.Receive("Monarch_Tickets_Message", function()
     if v and v.state and v.state.currentId == id and IsValid(v.state.chatScroll) then
         local tk
         for _, it in ipairs(v.state.ticketsCache or {}) do if it.id == id then tk = it break end end
+        local P = (Monarch_Tickets_GetPalette and Monarch_Tickets_GetPalette()) or {
+            panel = Color(28,28,30), outline = Color(55,57,63), titlebar = Color(30,30,32), divider = Color(80,82,88,160),
+            text = Color(230,232,236), btn = Color(60,64,72), btnHover = Color(72,76,84), btnText = Color(240,242,245),
+            primary = Color(88,88,88), primaryHover = Color(130,130,130), inputBg = Color(38,39,44), inputBorder = Color(70,73,79), inputText = Color(230,232,236), radius = 6,
+        }
         local reporterSID = tk and tostring(tk.reporter or tk.reporterId or "") or ""
         local handlerSID = tk and tostring(tk.claimedBy or tk.claimedById or "") or ""
         local msgSID = tostring(msg.sid or "")
+        local msgOrigin = string.lower(tostring(msg.origin or msg.source or ""))
+        local isReportMsg
+        if msgOrigin == "report" then
+            isReportMsg = true
+        elseif msgOrigin == "admin" then
+            isReportMsg = false
+        else
+            local msgRole = string.lower(tostring(msg.role or ""))
+            if msgRole == "player" then
+                isReportMsg = true
+            elseif msgRole == "staff" then
+                isReportMsg = false
+            elseif msgSID == "" then
+                isReportMsg = true
+            else
+                isReportMsg = (msgSID == reporterSID)
+            end
+        end
         local isCreator = (msgSID ~= "" and msgSID == reporterSID)
         local isHandler = (msgSID ~= "" and handlerSID ~= "" and msgSID == handlerSID)
         local holder = vgui.Create("DPanel", v.state.chatScroll)
@@ -258,37 +331,21 @@ net.Receive("Monarch_Tickets_Message", function()
         holder.Paint = nil
         local row = vgui.Create("DPanel", holder)
         row:Dock(FILL)
-        row:DockMargin(isHandler and 80 or 8, 0, isHandler and 8 or 80, 0)
+        row:DockMargin(8, 0, 8, 0)
         row.Paint = function(self, pw, ph)
-            local P = (Monarch_Tickets_GetPalette and Monarch_Tickets_GetPalette()) or {
-                panel = Color(28,28,30), outline = Color(55,57,63), titlebar = Color(30,30,32), divider = Color(80,82,88,160),
-                text = Color(230,232,236), btn = Color(60,64,72), btnHover = Color(72,76,84), btnText = Color(240,242,245),
-                primary = Color(88,88,88), primaryHover = Color(130,130,130), inputBg = Color(38,39,44), inputBorder = Color(70,73,79), inputText = Color(230,232,236), radius = 6,
-            }
-            local creatorBg = Color(40,120,60)
-            local creatorBorder = Color(60,160,80)
-            local handlerBg = Color(60,100,180)
-            local handlerBorder = Color(80,130,210)
-            local neutralBg = P.inputBg
-            local neutralBorder = P.outline
-            local bg, border
-            if isHandler then bg, border = handlerBg, handlerBorder
-            elseif isCreator then bg, border = creatorBg, creatorBorder
-            else bg, border = neutralBg, neutralBorder end
+            local bg = isReportMsg and Color(48, 132, 72) or Color(54, 98, 176)
+            local border = isReportMsg and Color(62, 156, 92) or Color(74, 124, 206)
 
-            surface.SetDrawColor(bg)
-            surface.DrawRect(0, 0, pw, ph)
-            surface.SetDrawColor(border)
-            surface.DrawOutlinedRect(0, 0, pw, ph, 1)
+            RoundedOutlinedBox((P.radius or 6) + 2, 0, 0, pw, ph, bg, border, 1)
             local who = msg.name or (isHandler and "Handler" or (isCreator and "Creator" or "Player"))
             local when = os.date("%I:%M %p", tonumber(msg.time or os.time()))
-            draw.SimpleText(who.." Â· "..when, "InvSmall", 8, 6, (isHandler or isCreator) and Color(245,245,245) or Color(190,192,195))
+            draw.SimpleText(who .. " - " .. when, "InvSmall", 8, 9, Color(244,246,250), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
         end
         local text = vgui.Create("DLabel", row)
         text:Dock(FILL)
-        text:DockMargin(8, 20, 8, 8)
+        text:DockMargin(8, 22, 8, 8)
         text:SetFont("InvSmall")
-        text:SetTextColor((isHandler or isCreator) and Color(250,250,250) or GetPalette().inputText)
+        text:SetTextColor(Color(248,250,252))
         text:SetWrap(true)
         text:SetAutoStretchVertical(true)
         text:SetText(tostring(msg.text or ""))

@@ -1,18 +1,29 @@
 local PANEL = {}
 
 function PANEL:Init()
-    self.Colour = Color(60,255,105,150)
+    self.Colour = Color(83, 143, 239, 255)
     self.Name = "Connecting..."
     self.Ping = 0
     self:SetCursor("hand")
     self:SetTooltip("Right click to copy SteamID.")
+
+    self.avatar = vgui.Create("AvatarImage", self)
+    self.avatar:SetSize(34, 34)
+    self.avatar:SetPos(6, 10)
 end
 
 function PANEL:SetPlayer(player)
-    self.Colour = Config.GamemodeColor
+    if Config and Config.GamemodeColor then
+        self.Colour = Color(Config.GamemodeColor.r, Config.GamemodeColor.g, Config.GamemodeColor.b, 255)
+    end
+
     self.Name = player:GetPData("RPName") or player:GetNWString("RPName") or player:Nick()
     self.Player = player
-    self.Badges =  {}
+    self.Badges = {}
+
+    if IsValid(self.avatar) then
+        self.avatar:SetPlayer(player, 64)
+    end
 end
 
 local function CapitalizeFirst(str)
@@ -45,56 +56,86 @@ local function GetUsergroupColor(usergroup)
     return colors[lowerGroup] or Color(255, 255, 255, 255) 
 end
 
-local function DrawGlowingText(text, font, x, y, color, glowIntensity)
+local function DrawGlowingText(text, font, x, y, color, glowIntensity, alignX, alignY)
+    glowIntensity = glowIntensity or 1
+    alignX = alignX or TEXT_ALIGN_LEFT
+    alignY = alignY or TEXT_ALIGN_TOP
+
+    local glowAlpha = math.Clamp(95 * glowIntensity, 0, 255)
+    local glowColor = Color(color.r, color.g, color.b, glowAlpha)
+    local glowFont = font .. "Glow"
+
+    draw.SimpleText(text, glowFont, x, y, glowColor, alignX, alignY)
+    draw.SimpleText(text, font, x, y, color, alignX, alignY)
 end
 
-local gradient = Material("vgui/gradient-l")
-local gradientr = Material("vgui/gradient-r")
-local outlineCol = Color(190,190,190,240)
-local darkCol = Color(0,0,0,200)
+surface.CreateFont("MonarchScoreboardRowName", {
+    font = "DIN Pro Medium",
+    size = 21,
+    weight = 500,
+    antialias = true,
+    extended = true,
+})
+
+surface.CreateFont("MonarchScoreboardRowNameGlow", {
+    font = "DIN Pro Medium",
+    size = 21,
+    weight = 500,
+    blursize = 6,
+    antialias = true,
+    extended = true,
+})
+
+surface.CreateFont("MonarchScoreboardRowRank", {
+    font = "DIN Pro Medium",
+    size = 21,
+    weight = 500,
+    antialias = true,
+    extended = true,
+})
+
+surface.CreateFont("MonarchScoreboardRowRankGlow", {
+    font = "DIN Pro Medium",
+    size = 21,
+    weight = 500,
+    blursize = 6,
+    antialias = true,
+    extended = true,
+})
+
+surface.CreateFont("MonarchScoreboardRowPing", {
+    font = "DIN Pro Medium",
+    size = 21,
+    weight = 500,
+    antialias = true,
+    extended = true,
+})
+
+surface.CreateFont("MonarchScoreboardRowPingGlow", {
+    font = "DIN Pro Medium",
+    size = 21,
+    weight = 500,
+    blursize = 6,
+    antialias = true,
+    extended = true,
+})
 
 function PANEL:Paint(w,h)
     if not IsValid(self.Player) then return end
 
-    surface.SetDrawColor(outlineCol)
-    surface.DrawOutlinedRect(0,0,w, h)
-
-    surface.SetDrawColor(Color(0,0,0,200))
-    surface.SetMaterial(gradient)
-    surface.DrawRect(1,1,w-1,h-2)
-
-    local Avatar = vgui.Create( "AvatarImage", self )
-    Avatar:SetSize( 40, 40 )
-    Avatar:SetPos( w/45, 9.8 )
-    Avatar:SetPlayer( self.Player, 64 ) 
+    if self:IsHovered() then
+        surface.SetDrawColor(255, 255, 255, 8)
+        surface.DrawRect(0, 0, w, h)
+    end
 
     local usergroup = self.Player:GetUserGroup()
     local capitalizedUsergroup = CapitalizeFirst(usergroup)
     local nameColor = GetUsergroupColor(usergroup)
+    local name = self.Player:Nick()
 
-    surface.SetFont("ThickUI-Element23")
-    surface.SetTextColor(color_white)
-    surface.SetTextPos(w/1.12,10)
-    surface.DrawText("Ping: "..self.Player:Ping())
-
-    surface.SetFont("ThickUI-Element23")
-    local playerName = self.Player:Nick()
-
-    surface.SetTextColor(nameColor)
-    surface.SetTextPos(w/11.5, 5)
-    surface.DrawText(playerName)
-
-    surface.SetFont("ThickUI-Element23Shadow")
-    local playerName = self.Player:Nick()
-
-    surface.SetTextColor(Color(nameColor.r, nameColor.g, nameColor.b, 70))
-    surface.SetTextPos(w/11.5, 5)
-    surface.DrawText(playerName)
-
-    surface.SetFont("ThickUI-Element13")
-    surface.SetTextColor(Color(200, 200, 200, 255))
-    surface.SetTextPos(w/11.5, 25)
-    surface.DrawText(capitalizedUsergroup)
+    draw.SimpleText(name, "MonarchScoreboardRowName", 46, 15, Color(nameColor.r, nameColor.g, nameColor.b, 245), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    DrawGlowingText(capitalizedUsergroup, "MonarchScoreboardRowRank", w * 0.41, 15, Color(nameColor.r, nameColor.g, nameColor.b, 245), 1.05, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    draw.SimpleText(tostring(self.Player:Ping()), "MonarchScoreboardRowPing", w - 6, 15, Color(178, 178, 178), TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
 end
 
 function PANEL:OnMousePressed(key)

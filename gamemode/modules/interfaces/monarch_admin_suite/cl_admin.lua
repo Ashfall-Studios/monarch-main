@@ -1,4 +1,4 @@
-﻿local function OpenTicketsUI()
+local function OpenTicketsUI()
     local isStaff = Monarch_Tickets_IsStaff
     if isfunction(isStaff) and not isStaff() then return end
 
@@ -8,6 +8,12 @@
     local w = math.floor(scrW * 0.8)
     local h = math.floor(scrH * 0.8)
 
+    local function RoundedOutlinedBox(radius, x, y, w, h, fill, outline, borderW)
+        borderW = borderW or 1
+        draw.RoundedBox(radius, x, y, w, h, outline)
+        draw.RoundedBox(math.max(0, radius - borderW), x + borderW, y + borderW, w - (borderW * 2), h - (borderW * 2), fill)
+    end
+
     local frame = vgui.Create("DFrame")
     frame:SetSize(w, h)
     frame:Center()
@@ -15,7 +21,8 @@
     frame:ShowCloseButton(false)
     frame:MakePopup()
     frame:SetDeleteOnClose(true)
-    frame.topBarH = 28
+    frame.topBarH = 30
+    frame.crumbH = 24
 
     if Monarch and Monarch.Theme and Monarch.Theme.AttachSkin then
         Monarch.Theme.AttachSkin(frame)
@@ -27,10 +34,12 @@
         end
         return {
             panel = Color(28,28,30),
+            panelElevated = Color(34,36,40),
             outline = Color(55,57,63),
             titlebar = Color(30,30,32),
             divider = Color(80,82,88,160),
             text = Color(230,232,236),
+            textMuted = Color(180,184,192),
             btn = Color(60,64,72),
             btnHover = Color(72,76,84),
             btnText = Color(240,242,245),
@@ -42,34 +51,39 @@
             radius = 6,
         }
     end
+
+    frame.breadcrumb = { "Admin Hub", "Tickets" }
+    function frame:SetBreadcrumb(parts)
+        if not istable(parts) or #parts == 0 then return end
+        self.breadcrumb = parts
+    end
+
     frame.Paint = function(s, pw, ph)
         local P = GetPalette()
+        local radius = (P.radius or 6) + 2
 
-        surface.SetDrawColor(P.panel)
-        surface.DrawRect(0, 0, pw, ph)
-        surface.SetDrawColor(P.outline)
-        surface.DrawOutlinedRect(0, 0, pw, ph, 1)
+        RoundedOutlinedBox(radius, 0, 0, pw, ph, P.panel, P.outline, 1)
+        draw.RoundedBox(radius, 1, 1, pw - 2, ph - 2, P.panelElevated or P.panel)
 
-        surface.SetDrawColor(P.titlebar)
-        surface.DrawRect(0, 0, pw, s.topBarH)
+        RoundedOutlinedBox(radius, 1, 1, pw - 2, s.topBarH + s.crumbH, P.titlebar, P.outline, 1)
         surface.SetDrawColor(P.divider)
         surface.DrawLine(0, s.topBarH, pw, s.topBarH)
+        surface.DrawLine(0, s.topBarH + s.crumbH, pw, s.topBarH + s.crumbH)
         draw.SimpleText("Monarch Admin Hub", "InvMed", 12, math.floor((s.topBarH - 24) * 0.5), P.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+
+        local crumbText = table.concat(s.breadcrumb or { "Admin Hub" }, " / ")
+        draw.SimpleText(crumbText, "InvSmall", 12, s.topBarH + 5, P.textMuted or P.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
     end
 
     frame.closeBtn = vgui.Create("DButton", frame)
-    frame.closeBtn:SetSize(24, 20)
-    frame.closeBtn:SetPos(frame:GetWide() - 28, math.floor((frame.topBarH - 20) * 0.5))
-    frame.closeBtn:SetText("X")
-    frame.closeBtn:SetFont("InvSmall")
+    frame.closeBtn:SetSize(28, 24)
+    frame.closeBtn:SetPos(frame:GetWide() - 32, math.floor((frame.topBarH - 24) * 0.5))
+    frame.closeBtn:SetText("")
+    frame.closeBtn:SetFont("Trebuchet24")
     frame.closeBtn:SetTextColor(color_white)
     frame.closeBtn.Paint = function(s, pw, ph)
-        local P = GetPalette()
-        local bg = s:IsHovered() and Color(160,60,60) or Color(120,50,50)
-        surface.SetDrawColor(bg)
-        surface.DrawRect(0, 0, pw, ph)
-        surface.SetDrawColor(P.outline)
-        surface.DrawOutlinedRect(0, 0, pw, ph, 1)
+        local clr = s:IsHovered() and Color(220, 96, 96) or Color(240, 242, 245)
+        draw.SimpleText("×", s:GetFont() or "Trebuchet24", math.floor(pw * 0.5), math.floor(ph * 0.5), clr, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
     end
     frame.closeBtn.DoClick = function() frame:Remove() end
     Monarch_Tickets_Frame = frame
@@ -95,10 +109,7 @@
             elseif self.Hovered then
                 bg = P.btnHover
             end
-            draw.RoundedBox(P.radius or 6, 0, 0, pw, ph, bg)
-
-            surface.SetDrawColor(P.outline)
-            surface.DrawOutlinedRect(0, 0, pw, ph, 1)
+            RoundedOutlinedBox(P.radius or 6, 0, 0, pw, ph, bg, P.outline, 1)
 
             surface.SetFont(self.Font or "InvMed")
             local label = self.ButtonText or ""
@@ -114,22 +125,15 @@
         local btn = vgui.Create("DButton", parent)
         btn:SetText("")
         local label = text or ""
-        if label == "✕" or label == "✕" or label == "×" then
-            label = "X"
+        if label == "✕" or label == "✖" or label == "X" then
+            label = "×"
         end
         btn.ButtonText = label
-        btn.Font = "InvSmall"
+        btn.Font = "Trebuchet24"
         function btn:Paint(pw, ph)
             local P = GetPalette()
-            local bg = self.Hovered and P.btnHover or P.btn
-            draw.RoundedBox(P.radius or 6, 0, 0, pw, ph, bg)
-            surface.SetDrawColor(P.outline)
-            surface.DrawOutlinedRect(0, 0, pw, ph, 1)
-            surface.SetFont(self.Font)
-            local tw, th = surface.GetTextSize(self.ButtonText)
-            surface.SetTextColor(P.btnText)
-            surface.SetTextPos(math.floor(pw * 0.5 - tw * 0.5), math.floor(ph * 0.5 - th * 0.5))
-            surface.DrawText(self.ButtonText)
+            local clr = self.Hovered and Color(220, 96, 96) or P.btnText
+            draw.SimpleText(self.ButtonText, self.Font, math.floor(pw * 0.5), math.floor(ph * 0.5), clr, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
         end
         return btn
     end
@@ -146,11 +150,10 @@
         dlg.topBarH = 28
         dlg.Paint = function(s, pw, ph)
             local P = GetPalette()
-            surface.SetDrawColor(P.panel) surface.DrawRect(0,0,pw,ph)
-            surface.SetDrawColor(P.outline) surface.DrawOutlinedRect(0,0,pw,ph,1)
+            RoundedOutlinedBox(P.radius or 6, 0, 0, pw, ph, P.panelElevated or P.panel, P.outline, 1)
             draw.SimpleText("Create Ticket", "InvMed", 12, 6, P.text)
         end
-        local closeBtn = PanelControlButton(dlg, "✕"); closeBtn:SetSize(24,20)
+        local closeBtn = PanelControlButton(dlg, "×"); closeBtn:SetSize(24,20)
         closeBtn:SetPos(dlg:GetWide()-28, math.floor((dlg.topBarH-20)/2))
         closeBtn.DoClick = function() dlg:Close() end
         closeBtn.Think = function(s) s:SetPos(dlg:GetWide()-28, math.floor((dlg.topBarH-20)/2)) end
@@ -199,21 +202,29 @@
         cancel.DoClick = function() dlg:Close() end
     end
 
-    local tabsLeft = vgui.Create("DPanel", frame)
+    local body = vgui.Create("DPanel", frame)
+    body:Dock(FILL)
+    body:DockMargin(8, frame.topBarH + frame.crumbH + 6, 8, 8)
+    body.Paint = nil
+
+    local tabsLeft = vgui.Create("DPanel", body)
     tabsLeft:Dock(LEFT)
     tabsLeft:SetWide(170)
     tabsLeft.Paint = function(self, w, h)
         local P = GetPalette()
-        surface.SetDrawColor(P.panel) surface.DrawRect(0,0,w,h)
-        surface.SetDrawColor(P.outline) surface.DrawOutlinedRect(0,0,w,h,1)
+        RoundedOutlinedBox(P.radius or 6, 0, 0, w, h, P.panel, P.outline, 1)
     end
     local tabList = vgui.Create("DScrollPanel", tabsLeft)
     tabList:Dock(FILL)
     tabList:DockMargin(4,4,4,4)
 
-    local right = vgui.Create("DPanel", frame)
+    local right = vgui.Create("DPanel", body)
     right:Dock(FILL)
-    right.Paint = nil
+    right:DockMargin(8, 0, 0, 0)
+    right.Paint = function(self, w, h)
+        local P = GetPalette()
+        RoundedOutlinedBox(P.radius or 6, 0, 0, w, h, P.panel, P.outline, 1)
+    end
 
     local function ClearRight()
         for _, ch in ipairs(right:GetChildren() or {}) do
@@ -494,6 +505,24 @@
                 local reporterSID = tostring(t.reporter or t.reporterId or "")
                 local handlerSID = tostring(t.claimedBy or t.claimedById or "")
                 local msgSID = tostring(m.sid or "")
+                local msgOrigin = string.lower(tostring(m.origin or m.source or ""))
+                local isReportMsg
+                if msgOrigin == "report" then
+                    isReportMsg = true
+                elseif msgOrigin == "admin" then
+                    isReportMsg = false
+                else
+                    local msgRole = string.lower(tostring(m.role or ""))
+                    if msgRole == "player" then
+                        isReportMsg = true
+                    elseif msgRole == "staff" then
+                        isReportMsg = false
+                    elseif msgSID == "" then
+                        isReportMsg = true
+                    else
+                        isReportMsg = (msgSID == reporterSID)
+                    end
+                end
                 local isCreator = (msgSID ~= "" and msgSID == reporterSID)
                 local isHandler = (msgSID ~= "" and handlerSID ~= "" and msgSID == handlerSID)
                 local holder = vgui.Create("DPanel", state.chatScroll)
@@ -503,32 +532,24 @@
                 holder.Paint = nil
                 local row = vgui.Create("DPanel", holder)
                 row:Dock(FILL)
-                row:DockMargin(isHandler and 80 or 8, 0, isHandler and 8 or 80, 0)
+                row:DockMargin(8, 0, 8, 0)
                 row.Paint = function(self, pw, ph)
                     local P = GetPalette()
-                    local creatorBg = Color(40,120,60)
-                    local creatorBorder = Color(60,160,80)
-                    local handlerBg = Color(60,100,180)
-                    local handlerBorder = Color(80,130,210)
-                    local neutralBg = P.inputBg
-                    local neutralBorder = P.outline
-                    local bg, border
-                    if isHandler then bg, border = handlerBg, handlerBorder
-                    elseif isCreator then bg, border = creatorBg, creatorBorder
-                    else bg, border = neutralBg, neutralBorder end
+                    local bg = isReportMsg and Color(48, 132, 72) or Color(54, 98, 176)
+                    local border = isReportMsg and Color(62, 156, 92) or Color(74, 124, 206)
                     local radius = (P.radius or 6) + 2
                     draw.RoundedBox(radius, 0, 0, pw, ph, bg)
                     surface.SetDrawColor(border)
                     surface.DrawOutlinedRect(0, 0, pw, ph, 1)
                     local who = m.name or (isHandler and "Handler" or (isCreator and "Creator" or "Player"))
                     local when = os.date("%I:%M %p", tonumber(m.time or os.time()))
-                    draw.SimpleText(who.." Â· "..when, "InvSmall", 8, 6, (isHandler or isCreator) and Color(245,245,245) or Color(190,192,195))
+                    draw.SimpleText(who .. " - " .. when, "InvSmall", 8, 6, Color(244,246,250))
                 end
                 local text = vgui.Create("DLabel", row)
                 text:Dock(FILL)
                 text:DockMargin(8, 20, 8, 8)
                 text:SetFont("InvSmall")
-                text:SetTextColor((isHandler or isCreator) and Color(250,250,250) or GetPalette().inputText)
+                text:SetTextColor(Color(248,250,252))
                 text:SetWrap(true)
                 text:SetAutoStretchVertical(true)
                 text:SetText(tostring(m.text or ""))
@@ -686,13 +707,19 @@
             local MAXLEN = 75
             local text = string.Trim(self:GetText() or "") if text == "" then return end
             if #text > MAXLEN then text = string.sub(text, 1, MAXLEN) end
-            net.Start("Monarch_Tickets_Message") net.WriteUInt(state.currentId, 16) net.WriteString(text) net.SendToServer()
+            net.Start("Monarch_Tickets_Message") net.WriteUInt(state.currentId, 16) net.WriteString(text) net.WriteString("admin") net.SendToServer()
             self:SetText("")
         end
         do
             local pad = 6
-            local btnClose = PanelControlButton(actionRow, "✕")
-            btnClose:Dock(RIGHT) btnClose:DockMargin(pad,pad,pad,pad) btnClose:SetWide(40)
+            local btnClose = StyledButton(actionRow, "CLOSE")
+            btnClose:Dock(RIGHT) btnClose:DockMargin(pad,pad,pad,pad) btnClose:SetWide(104)
+            btnClose.Paint = function(self, pw, ph)
+                local P = GetPalette()
+                local bg = self:IsHovered() and Color(144, 66, 66) or Color(120, 40, 40)
+                RoundedOutlinedBox(P.radius or 6, 0, 0, pw, ph, bg, Color(140, 60, 60), 1)
+                draw.SimpleText(self.ButtonText or "", "InvSmall", math.floor(pw * 0.5), math.floor(ph * 0.5), Color(250, 250, 252), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+            end
             btnClose.DoClick = function()
                 if not state.currentId then return end
                 SendActionCurrent("close")
@@ -738,45 +765,102 @@
             end
         }
 
+        local notifPad = 6
         local function LayoutNotifications()
-            local pad = 8
-            local y = (state.notifWrap:GetTall() or 0) - pad
+            local y = (state.notifWrap:GetTall() or 0) - notifPad
             for i = #state.notifItems, 1, -1 do
                 local item = state.notifItems[i]
                 if not IsValid(item) then table.remove(state.notifItems, i) else
+                    item:SetWide(math.max(0, (state.notifWrap:GetWide() or 0) - 12))
                     local h = item:GetTall()
                     y = y - h
                     local targetY = y
-                    y = y - pad
+                    y = y - notifPad
                     item._targetY = targetY
                 end
             end
         end
+        notifWrap.OnSizeChanged = function()
+            LayoutNotifications()
+        end
         function state:AddNotification(kind, t)
             if not IsValid(self.notifWrap) then return end
-            local col = Color(120,120,255) local label = "Updated"
-            if kind == "claimed" then col = Color(40,160,80) label = "Claimed" end
-            if kind == "closed" then col = Color(160,60,60) label = "Closed" end
+            local col = Color(120,120,255)
+            local label = "Updated"
+            if kind == "created" then
+                col = Color(214,170,86)
+                label = "Created"
+            elseif kind == "claimed" then
+                col = Color(40,160,80)
+                label = "Claimed"
+            elseif kind == "closed" then
+                col = Color(160,60,60)
+                label = "Closed"
+            end
+
+            local function ResolveReporterPlayer(data)
+                if not istable(data) then return nil end
+                if IsValid(data.reporter) and data.reporter:IsPlayer() then return data.reporter end
+                local sid64 = tostring(data.reporterId or data.reporter or "")
+                if sid64 ~= "" then
+                    for _, ply in ipairs(player.GetAll()) do
+                        if IsValid(ply) and ply:SteamID64() == sid64 then return ply end
+                    end
+                end
+                local reporterName = tostring(data.reporterName or data.reporter or "")
+                if reporterName ~= "" then
+                    for _, ply in ipairs(player.GetAll()) do
+                        if IsValid(ply) and string.lower(ply:Nick() or "") == string.lower(reporterName) then return ply end
+                    end
+                end
+                return nil
+            end
+
             local panel = vgui.Create("DPanel", self.notifWrap)
-            panel:SetSize(self.notifWrap:GetWide()-12, 60)
-            panel:SetPos(6, self.notifWrap:GetTall()+60)
+            panel:SetSize(self.notifWrap:GetWide()-12, 70)
+            panel:SetPos(6, self.notifWrap:GetTall()+70)
             panel.spawn = CurTime() panel.alpha = 0 panel._targetY = self.notifWrap:GetTall()-panel:GetTall()-6
+
+            local avatarWrap = vgui.Create("DPanel", panel)
+            avatarWrap:SetSize(44, 44)
+            avatarWrap:SetPos(10, 13)
+            avatarWrap.Paint = function(s, aw, ah)
+                local a = math.Clamp(panel.alpha or 255, 0, 255)
+                draw.RoundedBox(8, 0, 0, aw, ah, Color(96, 102, 112, a))
+                draw.RoundedBox(7, 1, 1, aw - 2, ah - 2, Color(54, 58, 64, a))
+            end
+
+            local avatar = vgui.Create("AvatarImage", avatarWrap)
+            avatar:SetSize(40, 40)
+            avatar:SetPos(2, 2)
+
+            local avatarPly = ResolveReporterPlayer(t)
+            if IsValid(avatarPly) then
+                avatar:SetPlayer(avatarPly, 64)
+            end
+
+            local avatarFallback = vgui.Create("DLabel", avatarWrap)
+            avatarFallback:Dock(FILL)
+            avatarFallback:SetFont("InvSmall")
+            avatarFallback:SetTextColor(Color(220, 224, 232))
+            avatarFallback:SetContentAlignment(5)
+            avatarFallback:SetText(IsValid(avatarPly) and "" or "?")
+
             panel.Paint = function(s, pw, ph)
                 local a = s.alpha or 255
                 local P = GetPalette()
-                surface.SetDrawColor(P.panel.r, P.panel.g, P.panel.b, 220 * (a/255)) surface.DrawRect(0,0,pw,ph)
+                draw.RoundedBox(8, 0, 0, pw, ph, Color(P.panel.r, P.panel.g, P.panel.b, 220 * (a/255)))
                 surface.SetDrawColor(col.r, col.g, col.b, 220 * (a/255)) surface.DrawOutlinedRect(0,0,pw,ph,2)
-                surface.SetFont("InvSmall")
-                local text = string.format("%s â€¢ #%s %s", label, tostring(t.id or "?"), tostring(t.reporterName or t.reporter or ""))
-                local tw, th = surface.GetTextSize(text)
-                surface.SetTextColor(P.text.r, P.text.g, P.text.b, a)
-                surface.SetTextPos(10, ph/2 - th/2)
-                surface.DrawText(text)
+                draw.SimpleText(string.format("%s Ticket #%s", label, tostring(t.id or "?")), "InvSmall", 64, 18, Color(P.text.r, P.text.g, P.text.b, a), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+                draw.SimpleText(tostring(t.reporterName or t.reporter or "Unknown Player"), "InvSmall", 64, 40, Color(190, 192, 195, a), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
             end
             panel.Think = function(s)
                 local dt = FrameTime() * 10
                 s.alpha = Lerp(dt, s.alpha, 255)
-                local x, y = s:GetPos()
+                if IsValid(avatarWrap) then avatarWrap:SetAlpha(s.alpha) end
+                if IsValid(avatar) then avatar:SetAlpha(s.alpha) end
+                if IsValid(avatarFallback) then avatarFallback:SetAlpha(s.alpha) end
+                local x, y = 6, select(2, s:GetPos())
                 local targetY = s._targetY or y
                 y = Lerp(dt, y, targetY)
                 s:SetPos(x, y)
@@ -794,9 +878,22 @@
         net.Start("Monarch_Tickets_RequestList") net.SendToServer()
         state.inputRow:SetVisible(false)
         state.actionRow:SetVisible(false)
+
     end
 
+
     local function SetActiveTab(key)
+        local tabLabel = key
+        for _, t in ipairs(TABS) do
+            if t.key == key then
+                tabLabel = t.label
+                break
+            end
+        end
+        if IsValid(frame) and frame.SetBreadcrumb then
+            frame:SetBreadcrumb({ "Admin Hub", tabLabel })
+        end
+
         for _, btn in ipairs(tabList:GetChildren() or {}) do
             if IsValid(btn) and btn._isTabBtn then btn.Selected = (btn._tabKey == key) end
         end
@@ -819,7 +916,6 @@
             btn.DoClick = function() SetActiveTab(t.key) end
         end
         tabList._tabsBuilt = true
-        SetActiveTab("tickets")
     end
 
     local function OpenCreateTicketDialog()
@@ -1009,6 +1105,7 @@
             for i = #state.notifItems, 1, -1 do
                 local item = state.notifItems[i]
                 if not IsValid(item) then table.remove(state.notifItems, i) else
+                    item:SetWide(math.max(0, (state.notifWrap:GetWide() or 0) - 12))
                     local h = item:GetTall()
                     y = y - h
                     local targetY = y
@@ -1017,38 +1114,84 @@
                 end
             end
         end
+        notifWrap.OnSizeChanged = function()
+            LayoutNotifications()
+        end
 
         function state:AddNotification(kind, t)
             if not IsValid(self.notifWrap) then return end
             local col = Color(120,120,255) 
             local label = "Updated"
+            if kind == "created" then col = Color(214,170,86) label = "Created" end
             if kind == "claimed" then col = Color(40,160,80) label = "Claimed" end
             if kind == "closed" then col = Color(160,60,60) label = "Closed" end
 
+            local function ResolveReporterPlayer(data)
+                if not istable(data) then return nil end
+                if IsValid(data.reporter) and data.reporter:IsPlayer() then return data.reporter end
+                local sid64 = tostring(data.reporterId or data.reporter or "")
+                if sid64 ~= "" then
+                    for _, ply in ipairs(player.GetAll()) do
+                        if IsValid(ply) and ply:SteamID64() == sid64 then return ply end
+                    end
+                end
+                local reporterName = tostring(data.reporterName or data.reporter or "")
+                if reporterName ~= "" then
+                    for _, ply in ipairs(player.GetAll()) do
+                        if IsValid(ply) and string.lower(ply:Nick() or "") == string.lower(reporterName) then return ply end
+                    end
+                end
+                return nil
+            end
+
             local panel = vgui.Create("DPanel", self.notifWrap)
-            panel:SetSize(self.notifWrap:GetWide()-12, 60)
-            panel:SetPos(6, self.notifWrap:GetTall()+60)
+            panel:SetSize(self.notifWrap:GetWide()-12, 70)
+            panel:SetPos(6, self.notifWrap:GetTall()+70)
             panel.spawn = CurTime()
             panel.alpha = 0
             panel._targetY = self.notifWrap:GetTall()-panel:GetTall()-6
+
+            local avatarWrap = vgui.Create("DPanel", panel)
+            avatarWrap:SetSize(44, 44)
+            avatarWrap:SetPos(10, 13)
+            avatarWrap.Paint = function(s, aw, ah)
+                local a = math.Clamp(panel.alpha or 255, 0, 255)
+                draw.RoundedBox(8, 0, 0, aw, ah, Color(96, 102, 112, a))
+                draw.RoundedBox(7, 1, 1, aw - 2, ah - 2, Color(54, 58, 64, a))
+            end
+
+            local avatar = vgui.Create("AvatarImage", avatarWrap)
+            avatar:SetSize(40, 40)
+            avatar:SetPos(2, 2)
+
+            local avatarPly = ResolveReporterPlayer(t)
+            if IsValid(avatarPly) then
+                avatar:SetPlayer(avatarPly, 64)
+            end
+
+            local avatarFallback = vgui.Create("DLabel", avatarWrap)
+            avatarFallback:Dock(FILL)
+            avatarFallback:SetFont("InvSmall")
+            avatarFallback:SetTextColor(Color(220, 224, 232))
+            avatarFallback:SetContentAlignment(5)
+            avatarFallback:SetText(IsValid(avatarPly) and "" or "?")
+
             panel.Paint = function(s, pw, ph)
                 local a = s.alpha or 255
                 local P = GetPalette()
-                surface.SetDrawColor(P.panel.r, P.panel.g, P.panel.b, 220 * (a/255))
-                surface.DrawRect(0,0,pw,ph)
+                draw.RoundedBox(8, 0, 0, pw, ph, Color(P.panel.r, P.panel.g, P.panel.b, 220 * (a/255)))
                 surface.SetDrawColor(col.r, col.g, col.b, 220 * (a/255))
                 surface.DrawOutlinedRect(0,0,pw,ph,2)
-                surface.SetFont("InvSmall")
-                local text = string.format("%s â€¢ #%s %s", label, tostring(t.id or "?"), tostring(t.reporterName or t.reporter or ""))
-                local tw, th = surface.GetTextSize(text)
-                surface.SetTextColor(P.text.r, P.text.g, P.text.b, a)
-                surface.SetTextPos(10, ph/2 - th/2)
-                surface.DrawText(text)
+                draw.SimpleText(string.format("%s Ticket #%s", label, tostring(t.id or "?")), "InvSmall", 64, 18, Color(P.text.r, P.text.g, P.text.b, a), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+                draw.SimpleText(tostring(t.reporterName or t.reporter or "Unknown Player"), "InvSmall", 64, 40, Color(190, 192, 195, a), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
             end
             panel.Think = function(s)
                 local dt = FrameTime() * 10
                 s.alpha = Lerp(dt, s.alpha, 255)
-                local x, y = s:GetPos()
+                if IsValid(avatarWrap) then avatarWrap:SetAlpha(s.alpha) end
+                if IsValid(avatar) then avatar:SetAlpha(s.alpha) end
+                if IsValid(avatarFallback) then avatarFallback:SetAlpha(s.alpha) end
+                local x, y = 6, select(2, s:GetPos())
                 local targetY = s._targetY or y
                 y = Lerp(dt, y, targetY)
                 s:SetPos(x, y)
@@ -1167,6 +1310,24 @@
                 local reporterSID = tostring(t.reporter or t.reporterId or "")
                 local handlerSID = tostring(t.claimedBy or t.claimedById or "")
                 local msgSID = tostring(m.sid or "")
+                local msgOrigin = string.lower(tostring(m.origin or m.source or ""))
+                local isReportMsg
+                if msgOrigin == "report" then
+                    isReportMsg = true
+                elseif msgOrigin == "admin" then
+                    isReportMsg = false
+                else
+                    local msgRole = string.lower(tostring(m.role or ""))
+                    if msgRole == "player" then
+                        isReportMsg = true
+                    elseif msgRole == "staff" then
+                        isReportMsg = false
+                    elseif msgSID == "" then
+                        isReportMsg = true
+                    else
+                        isReportMsg = (msgSID == reporterSID)
+                    end
+                end
                 local isCreator = (msgSID ~= "" and msgSID == reporterSID)
                 local isHandler = (msgSID ~= "" and handlerSID ~= "" and msgSID == handlerSID)
                 local holder = vgui.Create("DPanel", state.chatScroll)
@@ -1176,32 +1337,24 @@
                 holder.Paint = nil
                 local row = vgui.Create("DPanel", holder)
                 row:Dock(FILL)
-                row:DockMargin(isHandler and 80 or 8, 0, isHandler and 8 or 80, 0)
+                row:DockMargin(8, 0, 8, 0)
                 row.Paint = function(self, pw, ph)
                     local P = GetPalette()
-                    local creatorBg = Color(40,120,60)
-                    local creatorBorder = Color(60,160,80)
-                    local handlerBg = Color(60,100,180)
-                    local handlerBorder = Color(80,130,210)
-                    local neutralBg = P.inputBg
-                    local neutralBorder = P.outline
-                    local bg, border
-                    if isHandler then bg, border = handlerBg, handlerBorder
-                    elseif isCreator then bg, border = creatorBg, creatorBorder
-                    else bg, border = neutralBg, neutralBorder end
+                    local bg = isReportMsg and Color(48, 132, 72) or Color(54, 98, 176)
+                    local border = isReportMsg and Color(62, 156, 92) or Color(74, 124, 206)
                     local radius = (P.radius or 6) + 2
                     draw.RoundedBox(radius, 0, 0, pw, ph, bg)
                     surface.SetDrawColor(border)
                     surface.DrawOutlinedRect(0, 0, pw, ph, 1)
                     local who = m.name or (isHandler and "Handler" or (isCreator and "Creator" or "Player"))
                     local when = os.date("%I:%M %p", tonumber(m.time or os.time()))
-                    draw.SimpleText(who.." Â· "..when, "InvSmall", 8, 6, (isHandler or isCreator) and Color(245,245,245) or Color(190,192,195))
+                    draw.SimpleText(who .. " - " .. when, "InvSmall", 8, 6, Color(244,246,250))
                 end
                 local text = vgui.Create("DLabel", row)
                 text:Dock(FILL)
                 text:DockMargin(8, 20, 8, 8)
                 text:SetFont("InvSmall")
-                text:SetTextColor((isHandler or isCreator) and Color(250,250,250) or GetPalette().inputText)
+                text:SetTextColor(Color(248,250,252))
                 text:SetWrap(true)
                 text:SetAutoStretchVertical(true)
                 text:SetText(tostring(m.text or ""))
@@ -1455,6 +1608,7 @@
             net.Start("Monarch_Tickets_Message")
                 net.WriteUInt(state.currentId, 16)
                 net.WriteString(text)
+                net.WriteString("admin")
             net.SendToServer()
             self:SetText("")
         end
@@ -1756,7 +1910,7 @@
                     end
 
                     local del = vgui.Create("DButton", p)
-                    del:SetText("X")
+                    del:SetText("×")
                     del:SetFont("DermaDefaultBold")
                     del:SetSize(24, 20)
                     del:SetPos(p:GetWide() - 28, 10)
@@ -1858,7 +2012,7 @@
                     end
 
                     local del = vgui.Create("DButton", p)
-                    del:SetText("X")
+                    del:SetText("×")
                     del:SetFont("DermaDefaultBold")
                     del:SetSize(24, 20)
                     del:SetPos(p:GetWide() - 28, 10)
@@ -1930,7 +2084,7 @@
 
             -- Custom close button
             local closeBtn = vgui.Create("DButton", dlg)
-            closeBtn:SetText("X")
+            closeBtn:SetText("×")
             closeBtn:SetTextColor(color_white)
             closeBtn:SetSize(28, 22)
             closeBtn:SetPos(dlg:GetWide() - 28 - 6, 6)
@@ -3563,6 +3717,12 @@
         StyledButton = StyledButton,
         PanelControlButton = PanelControlButton,
         GetPalette = GetPalette,
+        RoundedOutlinedBox = RoundedOutlinedBox,
+        SetBreadcrumb = function(parts)
+            if IsValid(frame) and frame.SetBreadcrumb then
+                frame:SetBreadcrumb(parts)
+            end
+        end,
         ClearRight = ClearRight,
         OpenCreateTicket = OpenCreateTicket,
     }
@@ -3581,6 +3741,12 @@
     BuildPlayersView = loadTabBuilder("modules/interfaces/monarch_admin_suite/tools_utils/cl_players.lua") or BuildPlayersView
     BuildCharsView = loadTabBuilder("modules/interfaces/monarch_admin_suite/tools_utils/cl_chars.lua") or BuildCharsView
     BuildStaffView = loadTabBuilder("modules/interfaces/monarch_admin_suite/tools_utils/cl_staffmanager.lua") or BuildStaffView
+
+    if tabList._tabsBuilt and not frame._initialAdminTabLoaded then
+        frame._initialAdminTabLoaded = true
+        SetActiveTab("tickets")
+    end
+
 end
 
 Monarch_Tickets_OpenAdminUI = OpenTicketsUI

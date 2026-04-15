@@ -28,7 +28,7 @@ Config.LOOCCooldown = 15
 Config.ShouldDrawTeamIcons = true
 Config.MaxChars = 5
 Config.StorageGridCols = 5
-Config.StorageGridRows = 6
+Config.StorageGridRows = 8
 
 Config.DefaultSpawnVector  = Config.DefaultSpawnVector  or Vector(-3051.115234, 2407.534180, 127.942612)
 Config.DefaultSpawnVectors = Config.DefaultSpawnVectors or { Config.DefaultSpawnVector }
@@ -106,6 +106,25 @@ Config.Discord = ""
 Config.Forums = ""
 Config.Donations = ""
 
+local function ResolveLink(primary, fallback)
+    primary = tostring(primary or "")
+    fallback = tostring(fallback or "")
+
+    if primary ~= "" then
+        return primary
+    end
+
+    if fallback ~= "" then
+        return fallback
+    end
+
+    return "google.com"
+end
+
+Config.ruleslink = ResolveLink(Config.ruleslink, Config.Forums)
+Config.donatelink = ResolveLink(Config.donatelink, Config.Donations)
+Config.discordlink = ResolveLink(Config.discordlink, Config.Discord)
+
 Config.LoadButtonText = "Enter The City..."
 
 Config.DefaultOperator = "STEAM_0:0:581542620" 
@@ -133,5 +152,6 @@ if Monarch.Doors.RegisterGroup then
     Monarch.Doors.RegisterGroup("None", function(ply)
     end)
 end
+
 
 -- Look in modules/server/framework/sv_sql.lua for database configuration. For security purposes I do not recommend placing it here.

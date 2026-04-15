@@ -1,138 +1,100 @@
 local PANEL = {}
-local Populate = {}
 
-local blurDrawPanel = {
-    [1] = function(x, y, w, h)
-
-        render.UpdateScreenEffectTexture()
-
-        render.SetScissorRect(x, y, x + w, y + h, true)
-        if DrawBokehDOF then
-            DrawBokehDOF(6, 0, 0)
-        end
-        render.SetScissorRect(0, 0, 0, 0, false)
-    end
+local STAFF_RANK_ORDER = {
+    ["owner"] = 100,
+    ["operator"] = 90,
+    ["director"] = 85,
+    ["superadmin"] = 80,
+    ["senior admin"] = 70,
+    ["senioradmin"] = 70,
+    ["admin"] = 60,
+    ["jr. admin"] = 50,
+    ["jradmin"] = 50,
+    ["junior admin"] = 50,
+    ["moderator"] = 40,
+    ["trialmod"] = 30,
+    ["trial mod"] = 30,
+    ["trial moderator"] = 30,
+    ["vip"] = 20,
+    ["donator"] = 15,
+    ["supporter"] = 10,
+    ["user"] = 1,
 }
 
-local function BlurRect(x, y, w, h)
-    blurDrawPanel[1](x, y, w, h)
+local BANNER_MATERIAL = Material("materials/mrp/ui/sb_bg.png")
+
+local function NormalizeUrl(url)
+    local parsed = string.Trim(tostring(url or ""))
+    if parsed == "" then
+        parsed = "google.com"
+    end
+
+    if not string.match(parsed, "^https?://") then
+        parsed = "https://" .. parsed
+    end
+
+    return parsed
 end
 
-function Populate:Init()
+local function OpenConfiguredUrl(configKey)
+    local configured = (Config and Config[configKey]) or "google.com"
+    gui.OpenURL(NormalizeUrl(configured))
+end
 
-    local panelWidth = ScrW() * 0.4  
-    local panelHeight = ScrH() * 0.85
-    local leftMargin = 20
-    local topMargin = ScrH() * 0.1
+surface.CreateFont("MonarchScoreboardTitleDIN", {
+    font = "DIN Pro Medium",
+    size = 22,
+    weight = 600,
+    antialias = true,
+    extended = true,
+})
 
-    self:SetSize(panelWidth, panelHeight)
-    self:SetPos(-panelWidth, topMargin) 
-    self:SetTitle("")
-    self:ShowCloseButton(false)
-    self:SetDraggable(false)
-    self:MakePopup()
-    self:MoveToFront()
+surface.CreateFont("MonarchScoreboardCountSmall", {
+    font = "DIN Pro Medium",
+    size = 20,
+    weight = 500,
+    antialias = true,
+    extended = true,
+})
 
-    self.targetX = leftMargin
-    self.targetAlpha = 255
-    self.currentAlpha = 0
-    self.animSpeed = 8
-    self.isExiting = false 
+surface.CreateFont("MonarchScoreboardNav", {
+    font = "DIN Pro Medium",
+    size = 20,
+    weight = 500,
+    antialias = true,
+    extended = true,
+})
 
-    self.Paint = function(self, panelW, panelH)  
+surface.CreateFont("MonarchScoreboardSmall", {
+    font = "DIN Pro Medium",
+    size = 17,
+    weight = 500,
+    antialias = true,
+    extended = true,
+})
 
-        local gradientMaterial = Material("vgui/gradient-l")
-        if gradientMaterial and not gradientMaterial:IsError() then
-            surface.SetMaterial(gradientMaterial)
-            surface.SetDrawColor(0, 0, 0, 200 * (self.currentAlpha / 255))
-            surface.DrawTexturedRect(0, 0, panelW, panelH)
-        else
-            surface.SetDrawColor(0, 0, 0, 200 * (self.currentAlpha / 255))
-            surface.DrawRect(0, 0, panelW, panelH)
-        end
-
-        surface.SetDrawColor(60, 60, 60, 255 * (self.currentAlpha / 255))
-        surface.DrawOutlinedRect(0, 0, panelW, panelH, 2)
+local function GetAccentColor(alpha)
+    alpha = alpha or 255
+    if Config and Config.GamemodeColor then
+        return Color(Config.GamemodeColor.r, Config.GamemodeColor.g, Config.GamemodeColor.b, alpha)
     end
 
-    self.Think = function(self)
+    return Color(83, 143, 239, alpha)
+end
 
-        local currentX = self:GetPos()
-        local newX = Lerp(FrameTime() * self.animSpeed, currentX, self.targetX)
-        self:SetPos(newX, topMargin)
-
-        self.currentAlpha = Lerp(FrameTime() * self.animSpeed, self.currentAlpha, self.targetAlpha)
-        self:SetAlpha(self.currentAlpha)
-
-        if self.isExiting then
-            local screenLeft = -self:GetWide() * 0.5 
-            if currentX <= screenLeft then
-
-                self:SetMouseInputEnabled(false)
-                self:SetKeyboardInputEnabled(false)
-                gui.EnableScreenClicker(false)
-            end
-        end
+local function GetRankOrder(usergroup)
+    local normalized = string.lower(usergroup or "user")
+    if Monarch and Monarch.Ranks and Monarch.Ranks.GetOrder then
+        return Monarch.Ranks.GetOrder(normalized) or 1
     end
 
-    self.scrollPanel = vgui.Create("DScrollPanel", self)
-    self.scrollPanel:Dock(FILL)
-    self.scrollPanel:DockMargin(10, 10, 10, 10)
+    return STAFF_RANK_ORDER[normalized] or 1
+end
 
-    local sbar = self.scrollPanel:GetVBar()
-    function sbar:Paint(barW, barH) 
-        surface.SetDrawColor(40, 40, 40, 150)
-        surface.DrawRect(0, 0, barW, barH)
-    end
-    function sbar.btnUp:Paint(btnW, btnH) 
-        surface.SetDrawColor(60, 60, 60, 255)
-        surface.DrawRect(0, 0, btnW, btnH)
-    end
-    function sbar.btnDown:Paint(btnW, btnH) 
-        surface.SetDrawColor(60, 60, 60, 255)
-        surface.DrawRect(0, 0, btnW, btnH)
-    end
-    function sbar.btnGrip:Paint(gripW, gripH) 
-        surface.SetDrawColor(80, 80, 80, 255)
-        surface.DrawRect(0, 0, gripW, gripH)
-    end
-
-    local playerList = player.GetAll()
-
-    table.sort(playerList, function(a, b)
-        local aGroup = string.lower(a:GetUserGroup() or "user")
-        local bGroup = string.lower(b:GetUserGroup() or "user")
-
-        local aRank = 1
-        local bRank = 1
-        if Monarch and Monarch.Ranks and Monarch.Ranks.GetOrder then
-            aRank = Monarch.Ranks.GetOrder(aGroup)
-            bRank = Monarch.Ranks.GetOrder(bGroup)
-        else
-
-            local staffRankOrder = {
-                ["owner"] = 100,
-                ["operator"] = 90,
-                ["director"] = 85,
-                ["superadmin"] = 80,
-                ["senior admin"] = 70,
-                ["senioradmin"] = 70,
-                ["admin"] = 60,
-                ["jr. admin"] = 50,
-                ["jradmin"] = 50,
-                ["junior admin"] = 50,
-                ["moderator"] = 40,
-                ["trialmod"] = 30,
-                ["trial mod"] = 30,
-                ["trial moderator"] = 30,
-                ["vip"] = 20,
-                ["donator"] = 15,
-                ["supporter"] = 10,
-                ["user"] = 1,
-            }
-            aRank = staffRankOrder[aGroup] or 1
-            bRank = staffRankOrder[bGroup] or 1
-        end
+local function SortPlayers(list)
+    table.sort(list, function(a, b)
+        local aRank = GetRankOrder(a:GetUserGroup())
+        local bRank = GetRankOrder(b:GetUserGroup())
 
         if aRank ~= bRank then
             return aRank > bRank
@@ -144,178 +106,244 @@ function Populate:Init()
 
         return string.lower(a:Nick()) < string.lower(b:Nick())
     end)
-
-    for v,k in pairs(playerList) do
-        local playerCard = self.scrollPanel:Add("Monarch_ScoreboardCard")
-        playerCard:SetPlayer(k)
-        playerCard:SetHeight(60)
-        playerCard:Dock(TOP)
-        playerCard:DockMargin(0, 0, 0, 5)
-    end
 end
-
-function Populate:StartExitAnimation()
-    self.targetX = -self:GetWide()
-    self.targetAlpha = 0
-    self.isExiting = true
-end
-
-vgui.Register("Monarch_Scoreboard.Populate",  Populate, "DFrame")
 
 function PANEL:Init()
-    local panelWidth = ScrW() * 0.4
-    local headerHeight = 80
-    local leftMargin = 20
-    local topMargin = 20
+    local panelWidth = ScrW() * 0.45
+    local panelHeight = ScrH()
+    local panelY = 0
 
-    self:SetSize(panelWidth, headerHeight)
-    self:SetPos(-panelWidth, topMargin) 
+    self:SetSize(panelWidth, panelHeight)
+    self:SetPos(-panelWidth, panelY)
     self:SetTitle("")
     self:ShowCloseButton(false)
     self:SetDraggable(false)
-    self:MakePopup()
+    self:SetSizable(false)
+    self:SetMouseInputEnabled(true)
 
-    self.targetX = leftMargin
-    self.targetAlpha = 255
+    self.targetX = -30
+    self.targetY = panelY
     self.currentAlpha = 0
-    self.animSpeed = 8
-    self.isExiting = false 
+    self.targetAlpha = 255
+    self.animSpeed = 10
+    self.closing = false
+    self.nextRefresh = 0
+    self.playerCards = {}
+    self.playerOrder = {}
 
-    self.Paint = function(self, panelW, panelH)  
-        local gradientMaterial = Material("vgui/gradient-d")
-        if gradientMaterial and not gradientMaterial:IsError() then
-            surface.SetMaterial(gradientMaterial)
-            surface.SetDrawColor(0, 0, 0, 220 * (self.currentAlpha / 255))
-            surface.DrawTexturedRect(0, 0, panelW, panelH)
-        else
-            surface.SetDrawColor(0, 0, 0, 220 * (self.currentAlpha / 255))
-            surface.DrawRect(0, 0, panelW, panelH)
-        end
-
-        local gradientMaterialR = Material("vgui/gradient-r")
-        if gradientMaterialR and not gradientMaterialR:IsError() then
-            surface.SetMaterial(gradientMaterialR)
-            surface.SetDrawColor(0, 0, 0, 100 * (self.currentAlpha / 255))
-            surface.DrawTexturedRect(0, 0, panelW, panelH)
-        end
-
-        surface.SetFont("MainmenuMedium")
-        local titleText = "M O N A R C H"
-        local titleW, titleH = surface.GetTextSize(titleText)
-        surface.SetTextColor(255, 255, 255, 255 * (self.currentAlpha / 255))
-        surface.SetTextPos(15, panelH/2 - titleH/2)
-        surface.DrawText(titleText)
-
-        surface.SetFont("DermaDefault")
-        local subtitleText = "Player List"
-        local subtitleW, subtitleH = surface.GetTextSize(subtitleText)
-        surface.SetTextColor(200, 200, 200, 200 * (self.currentAlpha / 255))
-        surface.SetTextPos(15, panelH/2 + titleH/2 + 5)
-        surface.DrawText(subtitleText)
-
-        local playerCount = #player.GetAll()
-        local maxPlayers = game.MaxPlayers()
-        local playerCountText = playerCount .. "/" .. maxPlayers
-        surface.SetFont("MainmenuMedium")
-        local countW, countH = surface.GetTextSize(playerCountText)
-        surface.SetTextColor(255,255,255, 255 * (self.currentAlpha / 255))
-        surface.SetTextPos(panelW - countW - 15, panelH/2 - countH/2)
-        surface.DrawText(playerCountText)
-
-        surface.SetDrawColor(60, 60, 60, 255 * (self.currentAlpha / 255))
-        surface.DrawOutlinedRect(0, 0, panelW, panelH, 2)
-
-        surface.SetDrawColor(83, 143, 239, 255 * (self.currentAlpha / 255))
-        surface.DrawRect(0, panelH-3, panelW, 3)
+    self.rulesButton = vgui.Create("DButton", self)
+    self.rulesButton:SetText("")
+    self.rulesButton.DoClick = function()
+        OpenConfiguredUrl("ruleslink")
+    end
+    self.rulesButton.Paint = function(btn, w, h)
+        local alphaMul = self.currentAlpha / 255
+        local col = btn:IsHovered() and Color(230, 230, 230, 255 * alphaMul) or Color(175, 175, 175, 215 * alphaMul)
+        draw.SimpleText("Game Rules", "MonarchScoreboardSmall", 0, 0, col, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
     end
 
-    self.Think = function(self)
+    self.discordButton = vgui.Create("DButton", self)
+    self.discordButton:SetText("")
+    self.discordButton.DoClick = function()
+        OpenConfiguredUrl("discordlink")
+    end
+    self.discordButton.Paint = function(btn, w, h)
+        local alphaMul = self.currentAlpha / 255
+        local col = btn:IsHovered() and Color(230, 230, 230, 255 * alphaMul) or Color(175, 175, 175, 215 * alphaMul)
+        draw.SimpleText("Discord", "MonarchScoreboardSmall", 0, 0, col, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    end
 
-        local currentX = self:GetPos()
-        local newX = Lerp(FrameTime() * self.animSpeed, currentX, self.targetX)
-        self:SetPos(newX, topMargin)
+    self.subscribeButton = vgui.Create("DButton", self)
+    self.subscribeButton:SetText("")
+    self.subscribeButton.DoClick = function()
+        OpenConfiguredUrl("donatelink")
+    end
+    self.subscribeButton.Paint = function(btn, w, h)
+        local alphaMul = self.currentAlpha / 255
+        local col = btn:IsHovered() and Color(230, 230, 230, 255 * alphaMul) or Color(175, 175, 175, 215 * alphaMul)
+        draw.SimpleText("Subscribe", "MonarchScoreboardSmall", 0, 0, col, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    end
 
-        self.currentAlpha = Lerp(FrameTime() * self.animSpeed, self.currentAlpha, self.targetAlpha)
-        self:SetAlpha(self.currentAlpha)
+    self.scrollPanel = vgui.Create("DScrollPanel", self)
+    self.scrollPanel:Dock(FILL)
+    self.scrollPanel:DockMargin(10, 34, 200, 6)
 
-        if self.isExiting then
-            local screenLeft = -self:GetWide() * 0.5 
-            if currentX <= screenLeft then
+    local sbar = self.scrollPanel:GetVBar()
+    function sbar:Paint(barW, barH)
+        surface.SetDrawColor(10, 10, 10, 160)
+        surface.DrawRect(0, 0, barW, barH)
+    end
 
-                self:SetMouseInputEnabled(false)
-                self:SetKeyboardInputEnabled(false)
-                gui.EnableScreenClicker(false)
+    function sbar.btnUp:Paint(btnW, btnH)
+        surface.SetDrawColor(0, 0, 0, 0)
+        surface.DrawRect(0, 0, btnW, btnH)
+    end
+
+    function sbar.btnDown:Paint(btnW, btnH)
+        surface.SetDrawColor(0, 0, 0, 0)
+        surface.DrawRect(0, 0, btnW, btnH)
+    end
+
+    function sbar.btnGrip:Paint(gripW, gripH)
+        surface.SetDrawColor(110, 110, 110, 210)
+        surface.DrawRect(0, 0, gripW, gripH)
+    end
+
+    self:RebuildPlayerCards(true)
+end
+
+function PANEL:PerformLayout(panelW, panelH)
+    local navY = 7
+    local textH = draw.GetFontHeight("MonarchScoreboardSmall")
+
+    self.rulesButton:SetPos(panelW * 0.34, navY)
+    self.rulesButton:SetSize(110, textH + 2)
+
+    self.discordButton:SetPos(panelW * 0.47, navY)
+    self.discordButton:SetSize(90, textH + 2)
+
+    self.subscribeButton:SetPos(panelW * 0.57, navY)
+    self.subscribeButton:SetSize(95, textH + 2)
+end
+
+function PANEL:RebuildPlayerCards(force)
+    local players = player.GetAll()
+    SortPlayers(players)
+
+    local signatureParts = {}
+    for i = 1, #players do
+        local ply = players[i]
+        signatureParts[#signatureParts + 1] = tostring(ply:EntIndex()) .. ":" .. tostring(ply:Team()) .. ":" .. string.lower(ply:GetUserGroup() or "user")
+    end
+
+    local signature = table.concat(signatureParts, "|")
+    if not force and signature == self.lastSignature then
+        return
+    end
+
+    self.lastSignature = signature
+
+    local seen = {}
+    for i = 1, #players do
+        local ply = players[i]
+        seen[ply] = true
+
+        local card = self.playerCards[ply]
+        if not IsValid(card) then
+            card = self.scrollPanel:Add("Monarch_ScoreboardCard")
+            card:SetHeight(54)
+            card:Dock(TOP)
+            card:DockMargin(0, 0, 50, 1)
+            self.playerCards[ply] = card
+        end
+
+        card:SetPlayer(ply)
+        card:SetZPos(i)
+    end
+
+    for ply, card in pairs(self.playerCards) do
+        if (not seen[ply]) or (not IsValid(ply)) then
+            if IsValid(card) then
+                card:Remove()
             end
+            self.playerCards[ply] = nil
         end
     end
 end
 
-function PANEL:StartExitAnimation()
-    self.targetX = -self:GetWide()
+function PANEL:Think()
+    local x, y = self:GetPos()
+    local newX = Lerp(FrameTime() * self.animSpeed, x, self.targetX)
+    self:SetPos(newX, self.targetY)
+
+    self.currentAlpha = Lerp(FrameTime() * self.animSpeed, self.currentAlpha, self.targetAlpha)
+    self:SetAlpha(self.currentAlpha)
+
+    if self.closing and self.currentAlpha <= 2 then
+        self:Remove()
+        return
+    end
+
+    if CurTime() >= self.nextRefresh then
+        self.nextRefresh = CurTime() + 1
+        self:RebuildPlayerCards(false)
+    end
+end
+
+function PANEL:StartClose()
+    self.closing = true
+    self.targetX = -self:GetWide() - 24
     self.targetAlpha = 0
-    self.isExiting = true
+    self:SetMouseInputEnabled(false)
+    self:SetKeyboardInputEnabled(false)
+end
+
+function PANEL:OnRemove()
+    Monarch = Monarch or {}
+    Monarch.ScoreboardOpen = false
+    gui.EnableScreenClicker(false)
+end
+
+function PANEL:Paint(panelW, panelH)
+    local alphaMul = self.currentAlpha / 100
+
+    if BANNER_MATERIAL and not BANNER_MATERIAL:IsError() then
+        surface.SetMaterial(BANNER_MATERIAL)
+        surface.SetDrawColor(180,180,180, 100 * alphaMul)
+        surface.DrawTexturedRect(0, 0, panelW, panelH)
+    end
+
+    local online = #player.GetAll()
+    local maxPlayers = game.MaxPlayers()
+
+    local navY = 7
+    draw.SimpleText("MONARCH", "MonarchScoreboardTitleDIN", 8, 4, Color(232, 232, 232, 255 * alphaMul), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    draw.SimpleText("Players: " .. online .. "/" .. maxPlayers, "MonarchScoreboardSmall", panelW * 0.18, navY, Color(210, 210, 210, 230 * alphaMul), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 end
 
 vgui.Register("Monarch_Scoreboard", PANEL, "DFrame")
 
-function GM:ScoreboardShow()
+local function EnsureScoreboard()
+    if IsValid(Score) then
+        return Score
+    end
+
     Score = vgui.Create("Monarch_Scoreboard")
-    Score:Show()
-    Score:MakePopup()
-    Score:SetKeyboardInputEnabled(false)
+    return Score
+end
 
-    Scr = vgui.Create("Monarch_Scoreboard.Populate")
-    Scr:Show()
-    Scr:MakePopup()
-    Scr:SetKeyboardInputEnabled(false)
+function GM:ScoreboardShow()
+    local board = EnsureScoreboard()
+    if not IsValid(board) then
+        return
+    end
 
-    hook.Add("HUDPaint", "drawBlur", function()
-        if IsValid(Score) and IsValid(Scr) then
+    board.closing = false
+    board.targetX = 0
+    board.targetAlpha = 255
+    board:SetVisible(true)
+    board:SetMouseInputEnabled(true)
+    board:SetKeyboardInputEnabled(false)
+    board:RebuildPlayerCards(true)
+    board:MakePopup()
+    board:SetKeyboardInputEnabled(false)
+    gui.EnableScreenClicker(true)
 
-            if Score.currentAlpha and Score.currentAlpha > 10 then
-                local headerX, headerY = Score:GetPos()
-                local headerW, headerH = Score:GetSize()
-                BlurRect(headerX, headerY, headerW, headerH)
-            end
+    Monarch = Monarch or {}
+    Monarch.ScoreboardOpen = true
 
-            if Scr.currentAlpha and Scr.currentAlpha > 10 then
-                local mainX, mainY = Scr:GetPos()
-                local mainW, mainH = Scr:GetSize()
-                BlurRect(mainX, mainY, mainW, mainH)
-            end
-        end
-    end)
+    return true
 end
 
 function GM:ScoreboardHide()
-
     gui.EnableScreenClicker(false)
 
-    if IsValid(Scr) then
-        Scr:SetMouseInputEnabled(false)
-        Scr:SetKeyboardInputEnabled(false)
-        Scr:StartExitAnimation()
-
-        timer.Simple(0.5, function()
-            if IsValid(Scr) then
-                Scr:Close()
-            end
-        end)
-    end
-
     if IsValid(Score) then
-        Score:SetMouseInputEnabled(false)
-        Score:SetKeyboardInputEnabled(false)
-        Score:StartExitAnimation()
-
-        timer.Simple(0.5, function()
-            if IsValid(Score) then
-                Score:Close()
-            end
-        end)
+        Score:StartClose()
     end
 
-    timer.Simple(0.6, function()
-        hook.Remove("HUDPaint", "drawBlur")
-    end)
+    Monarch = Monarch or {}
+    Monarch.ScoreboardOpen = false
+
+    return true
 end
